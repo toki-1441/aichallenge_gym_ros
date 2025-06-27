@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import time
+from rclpy.time import Time
 import rclpy
 import rclpy.logging
 from rclpy.node import Node
@@ -35,6 +36,8 @@ from geometry_msgs.msg import Transform
 from geometry_msgs.msg import Quaternion
 from ackermann_msgs.msg import AckermannDriveStamped
 from tf2_ros import TransformBroadcaster
+from rosgraph_msgs.msg import Clock
+from autoware_auto_control_msgs.msg import AckermannControlCommand
 
 import gym
 import numpy as np
@@ -137,7 +140,7 @@ class GymBridge(Node):
         self.angle_max = scan_fov / 2.
         self.angle_inc = scan_fov / scan_beams
         self.ego_namespace = self.get_parameter('ego_namespace').value
-        ego_odom_topic = self.ego_namespace + '/' + self.get_parameter('ego_odom_topic').value
+        ego_odom_topic = "/localization/kinematic_state"
         self.scan_distance_to_base_link = self.get_parameter('scan_distance_to_base_link').value
         self.get_logger().info(f"{sx}, {sy}, {stheta} initialize")
         self.obs, _ , self.done, _ = self.env.reset(np.array([[sx, sy, stheta]]))
@@ -154,8 +157,10 @@ class GymBridge(Node):
         # publishers
         self.ego_scan_pub = self.create_publisher(LaserScan, ego_scan_topic, 10)
         self.ego_odom_pub = self.create_publisher(Odometry, ego_odom_topic, 10)
+        self.publisher_ = self.create_publisher(Clock, '/clock', 10)
         self.ego_drive_published = False
         self.reset_pose = [sx, sy, stheta]
+        self.start_time = self.get_clock().now().nanoseconds / 1e9
 
         # subscribers
         self.ego_drive_sub = self.create_subscription(
@@ -169,12 +174,28 @@ class GymBridge(Node):
             self.ego_reset_callback,
             10)
 
+        self.subscription = self.create_subscription(
+            AckermannControlCommand,
+            '/control/command/control_cmd',
+            self.control_command_callback,
+            10 # QoS history depth
+        )
+
         if self.get_parameter('kb_teleop').value:
             self.teleop_sub = self.create_subscription(
                 Twist,
                 '/cmd_vel',
                 self.teleop_callback,
                 10)
+
+    def control_command_callback(self, msg: AckermannControlCommand):
+        """
+        Callback function for the /control/command/control_cmd topic.
+        Extracts steering angle and speed to control the gym environment.
+        """
+        self.ego_steer = msg.lateral.steering_tire_angle
+        self.ego_requested_speed = msg.longitudinal.speed
+        self.ego_drive_published = True
 
 
     def drive_callback(self, drive_msg):
@@ -214,8 +235,16 @@ class GymBridge(Node):
     def drive_timer_callback(self):
         if self.ego_drive_published:
             self.obs, _, self.done, _ = self.env.step(np.array([[self.ego_steer, self.ego_requested_speed]]))
-        self.env.render(mode='human')
+        # self.env.render(mode='human')
         self._update_sim_state()
+        # publish clock
+        msg = Clock()
+        current_relative_time = self.get_clock().now().nanoseconds / 1e9 - self.start_time
+        sec = int(current_relative_time)
+        nanosec = int((current_relative_time - sec) * 1e9)
+        msg.clock.sec = sec
+        msg.clock.nanosec = nanosec
+        self.publisher_.publish(msg)
 
     def timer_callback(self):
         ts = self.get_clock().now().to_msg()
