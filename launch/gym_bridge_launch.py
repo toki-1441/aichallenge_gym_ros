@@ -35,8 +35,6 @@ def generate_launch_description():
         'sim.yaml'
         )
     config_dict = yaml.safe_load(open(config, 'r'))
-    has_opp = config_dict['bridge']['ros__parameters']['num_agent'] > 1
-    teleop = config_dict['bridge']['ros__parameters']['kb_teleop']
 
     bridge_node = Node(
         package='aichallenge_gym_ros',
@@ -89,7 +87,5 @@ def generate_launch_description():
     ld.add_action(nav_lifecycle_node)
     ld.add_action(map_server_node)
     ld.add_action(ego_robot_publisher)
-    if has_opp:
-        ld.add_action(opp_robot_publisher)
 
     return ld

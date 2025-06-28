@@ -46,67 +46,113 @@ from transforms3d import euler
 class GymBridge(Node):
     def __init__(self):
         super().__init__('gym_bridge')
-
-        self.declare_parameter('ego_namespace')
-        self.declare_parameter('ego_odom_topic')
-        self.declare_parameter('ego_opp_odom_topic')
+        # default parameters
         self.declare_parameter('ego_scan_topic')
-        self.declare_parameter('ego_drive_topic')
-        self.declare_parameter('opp_namespace')
-        self.declare_parameter('opp_odom_topic')
-        self.declare_parameter('opp_ego_odom_topic')
-        self.declare_parameter('opp_scan_topic')
-        self.declare_parameter('opp_drive_topic')
         self.declare_parameter('scan_distance_to_base_link')
         self.declare_parameter('scan_fov')
         self.declare_parameter('scan_beams')
         self.declare_parameter('map_path')
         self.declare_parameter('map_img_ext')
-        self.declare_parameter('num_agent')
         self.declare_parameter('sx')
         self.declare_parameter('sy')
         self.declare_parameter('stheta')
-        self.declare_parameter('sx1')
-        self.declare_parameter('sy1')
-        self.declare_parameter('stheta1')
         self.declare_parameter('kb_teleop')
+        # add parameters
+        # custom parameters
+        self.declare_parameter("mass")
+        self.declare_parameter("length")
+        self.declare_parameter("width")
+        self.declare_parameter("lf")
+        self.declare_parameter("lr")
+        self.declare_parameter("s_max")
+        self.declare_parameter("s_min")
+        self.declare_parameter("a_max")
+        self.declare_parameter("mu")
+        self.declare_parameter("C_Sf")
+        self.declare_parameter("C_Sr")
+        self.declare_parameter("h")
+        self.declare_parameter("I")
+        self.declare_parameter("sv_min")
+        self.declare_parameter("sv_max")
+        self.declare_parameter("v_switch")
+        self.declare_parameter("v_min")
+        self.declare_parameter("v_max")
 
-        # check num_agents
-        num_agents = self.get_parameter('num_agent').value
-        if num_agents < 1 or num_agents > 2:
-            raise ValueError('num_agents should be either 1 or 2.')
-        elif type(num_agents) != int:
-            raise ValueError('num_agents should be an int.')
+        # rendering parameters
+        self.declare_parameter('gym_rendering')
 
-        custom_params = {
-            # ユーザー指定のパラメータ
-            'm': 160.0,                               # 質量 [kg]
-            'length': 2.0,                            # 全長 [m]
-            'width': 1.45,                            # 全幅 [m]
-            'lf': 1.087/2.0,                        # 重心から前軸までの距離 [m] (ホイールベースの半分と仮定)
-            'lr': 1.087/2.0,                        # 重心から後軸までの距離 [m] (ホイールベースの半分と仮定)
-            's_max': 0.64,         # 最大ステアリング角 [rad]
-            's_min': -0.64,        # 最小ステアリング角 [rad]
-            'a_max': 3.2,                             # 最大加速度 [m/s^2]
+        # get parameters
+        self.m = self.get_parameter('mass').value
+        self.length = self.get_parameter('length').value
+        self.width = self.get_parameter('width').value
+        self.lf = self.get_parameter('lf').value
+        self.lr = self.get_parameter('lr').value
+        self.s_max = self.get_parameter('s_max').value
+        self.s_min = self.get_parameter('s_min').value
+        self.a_max = self.get_parameter('a_max').value
+        self.mu = self.get_parameter('mu').value
+        self.C_Sf = self.get_parameter('C_Sf').value
+        self.C_Sr = self.get_parameter('C_Sr').value
+        self.h = self.get_parameter('h').value
+        self.I = self.get_parameter('I').value
+        self.sv_min = self.get_parameter('sv_min').value
+        self.sv_max = self.get_parameter('sv_max').value
+        self.v_switch = self.get_parameter('v_switch').value
+        self.v_min = self.get_parameter('v_min').value
+        self.v_max = self.get_parameter('v_max').value
+
+        self.rendering = self.get_parameter('gym_rendering').value
+
+
+        # custom_params = {
+        #     # ユーザー指定のパラメータ
+        #     'm': 160.0,                               # 質量 [kg]
+        #     'length': 2.0,                            # 全長 [m]
+        #     'width': 1.45,                            # 全幅 [m]
+        #     'lf': 1.087/2.0,                        # 重心から前軸までの距離 [m] (ホイールベースの半分と仮定)
+        #     'lr': 1.087/2.0,                        # 重心から後軸までの距離 [m] (ホイールベースの半分と仮定)
+        #     's_max': 0.64,         # 最大ステアリング角 [rad]
+        #     's_min': -0.64,        # 最小ステアリング角 [rad]
+        #     'a_max': 3.2,                             # 最大加速度 [m/s^2]
             
-            # デフォルトまたは推定値を使用するパラメータ
-            'mu': 1.0489,                             # 路面摩擦係数 (デフォルト値)
-            'C_Sf': 5.64718,                            # 前輪コーナリングスティフネス (デフォルト値)
-            'C_Sr': 5.65456,                           # 後輪コーナリングスティフネス (デフォルト値)
-            'h': 0.2,                                 # 重心の高さ [m] (推定値)
-            'I': 81.37,           # 慣性モーメント [kgm^2] (均一な棒として概算)
-            'sv_min': -0.32,                          # 最小ステアリング速度 [rad/s] (デフォルト値)
-            'sv_max': 0.32,                            # 最大ステアリング速度 [rad/s] (デフォルト値)
-            'v_switch': 7.319,                        # 速度スイッチ (デフォルト値)
-            'v_min': -10.0,                           # 最小速度 [m/s] (調整値)
-            'v_max': 25.0,                            # 最大速度 [m/s] (調整値)
+        #     # デフォルトまたは推定値を使用するパラメータ
+        #     'mu': 1.0489,                             # 路面摩擦係数 (デフォルト値)
+        #     'C_Sf': 5.64718,                            # 前輪コーナリングスティフネス (デフォルト値)
+        #     'C_Sr': 5.65456,                           # 後輪コーナリングスティフネス (デフォルト値)
+        #     'h': 0.2,                                 # 重心の高さ [m] (推定値)
+        #     'I': 81.37,           # 慣性モーメント [kgm^2] (均一な棒として概算)
+        #     'sv_min': -0.32,                          # 最小ステアリング速度 [rad/s] (デフォルト値)
+        #     'sv_max': 0.32,                            # 最大ステアリング速度 [rad/s] (デフォルト値)
+        #     'v_switch': 7.319,                        # 速度スイッチ (デフォルト値)
+        #     'v_min': -10.0,                           # 最小速度 [m/s] (調整値)
+        #     'v_max': 25.0,                            # 最大速度 [m/s] (調整値)
+        # }
+        custom_params = {
+            'm': self.m,                               # 質量 [kg]
+            'length': self.length,                     # 全長 [m]
+            'width': self.width,                       # 全幅 [m]
+            'lf': self.lf,                             # 重心から前軸までの距離 [m]
+            'lr': self.lr,                             # 重心から後軸までの距離 [m]
+            's_max': self.s_max,                       # 最大ステアリング角 [rad]
+            's_min': self.s_min,                       # 最小ステアリング角 [rad]
+            'a_max': self.a_max,                       # 最大加速度 [m/s^2]
+            'mu': self.mu,                             # 路面摩擦係数
+            'C_Sf': self.C_Sf,                         # 前輪コーナリングスティフネス
+            'C_Sr': self.C_Sr,                        # 後輪コーナリングスティフネス
+            'h': self.h,                               # 重心の高さ [m]
+            'I': self.I,                               # 慣性モーメント [kgm^2]
+            'sv_min': self.sv_min,                     # 最小ステアリング速度 [rad/s]
+            'sv_max': self.sv_max,                     # 最大ステアリング速度 [rad/s]
+            'v_switch': self.v_switch,                 # 速度スイッチ
+            'v_min': self.v_min,                       # 最小速度 [m/s]
+            'v_max': self.v_max,                       # 最大速度 [m/s]
         }
 
         # env backend
         self.env = gym.make('aic_gym:aic-v0',
                             map=self.get_parameter('map_path').value,
                             map_ext=self.get_parameter('map_img_ext').value,
-                            num_agents=num_agents, params=custom_params)
+                            num_agents=1, params=custom_params)
         def render_callback(env_renderer):
             # custom extra drawing function
 
@@ -133,13 +179,11 @@ class GymBridge(Node):
         self.ego_steer = 0.0
         self.ego_collision = False
         ego_scan_topic = self.get_parameter('ego_scan_topic').value
-        ego_drive_topic = self.get_parameter('ego_drive_topic').value
         scan_fov = self.get_parameter('scan_fov').value
         scan_beams = self.get_parameter('scan_beams').value
         self.angle_min = -scan_fov / 2.
         self.angle_max = scan_fov / 2.
         self.angle_inc = scan_fov / scan_beams
-        self.ego_namespace = self.get_parameter('ego_namespace').value
         ego_odom_topic = "/localization/kinematic_state"
         self.scan_distance_to_base_link = self.get_parameter('scan_distance_to_base_link').value
         self.get_logger().info(f"{sx}, {sy}, {stheta} initialize")
@@ -161,13 +205,9 @@ class GymBridge(Node):
         self.ego_drive_published = False
         self.reset_pose = [sx, sy, stheta]
         self.start_time = self.get_clock().now().nanoseconds / 1e9
+        self.ts = Time(seconds=0, nanoseconds=0)
 
         # subscribers
-        self.ego_drive_sub = self.create_subscription(
-            AckermannDriveStamped,
-            ego_drive_topic,
-            self.drive_callback,
-            10)
         self.ego_reset_sub = self.create_subscription(
             PoseWithCovarianceStamped,
             '/initialpose',
@@ -198,10 +238,6 @@ class GymBridge(Node):
         self.ego_drive_published = True
 
 
-    def drive_callback(self, drive_msg):
-        self.ego_requested_speed = drive_msg.drive.speed
-        self.ego_steer = drive_msg.drive.steering_angle
-        self.ego_drive_published = True
 
     def opp_drive_callback(self, drive_msg):
         self.opp_requested_speed = drive_msg.drive.speed
@@ -235,7 +271,8 @@ class GymBridge(Node):
     def drive_timer_callback(self):
         if self.ego_drive_published:
             self.obs, _, self.done, _ = self.env.step(np.array([[self.ego_steer, self.ego_requested_speed]]))
-        # self.env.render(mode='human')
+        if self.rendering:
+            self.env.render(mode='human')
         self._update_sim_state()
         # publish clock
         msg = Clock()
@@ -244,14 +281,14 @@ class GymBridge(Node):
         nanosec = int((current_relative_time - sec) * 1e9)
         msg.clock.sec = sec
         msg.clock.nanosec = nanosec
+        self.ts = Time(seconds=sec, nanoseconds=nanosec)
         self.publisher_.publish(msg)
 
     def timer_callback(self):
-        ts = self.get_clock().now().to_msg()
 
         # pub scans
         scan = LaserScan()
-        scan.header.stamp = ts
+        scan.header.stamp = self.ts.to_msg()
         scan.header.frame_id = 'laser'
         scan.angle_min = self.angle_min
         scan.angle_max = self.angle_max
@@ -260,7 +297,7 @@ class GymBridge(Node):
         scan.range_max = 30.
         scan.ranges = self.ego_scan
         self.ego_scan_pub.publish(scan)
-
+        ts = self.ts
 
         # pub tf
         self._publish_odom(ts)
@@ -288,7 +325,7 @@ class GymBridge(Node):
 
     def _publish_odom(self, ts):
         ego_odom = Odometry()
-        ego_odom.header.stamp = ts
+        ego_odom.header.stamp = ts.to_msg()
         ego_odom.header.frame_id = 'map'
         ego_odom.child_frame_id = 'base_link'
         ego_odom.pose.pose.position.x = self.ego_pose[0]
@@ -317,7 +354,7 @@ class GymBridge(Node):
 
         ego_ts = TransformStamped()
         ego_ts.transform = ego_t
-        ego_ts.header.stamp = ts
+        ego_ts.header.stamp = ts.to_msg()
         ego_ts.header.frame_id = 'map'
         ego_ts.child_frame_id = 'base_link'
         self.br.sendTransform(ego_ts)
@@ -328,7 +365,7 @@ class GymBridge(Node):
         ego_scan_ts.transform.translation.x = self.scan_distance_to_base_link
         # ego_scan_ts.transform.translation.z = 0.04+0.1+0.025
         ego_scan_ts.transform.rotation.w = 1.
-        ego_scan_ts.header.stamp = ts
+        ego_scan_ts.header.stamp = ts.to_msg()
         ego_scan_ts.header.frame_id = 'base_link'
         ego_scan_ts.child_frame_id = 'laser'
         self.br.sendTransform(ego_scan_ts)
