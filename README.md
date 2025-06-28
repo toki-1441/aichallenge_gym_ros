@@ -1,6 +1,6 @@
-# aichallenge_gym
+# aichallenge_gym_ros
 
-`aichallenge_gym` is a project that adapts the [f1tenth_gym](https://github.com/f1tenth/f1tenth_gym) environment for use within the AI Challenge competition context. This repository provides a bridge between the ROS 2 environment and the `aic_gym` simulation, allowing for control and sensing of a simulated vehicle.
+`aichallenge_gym_ros` is a project that adapts the [f1tenth_gym](https://github.com/f1tenth/f1tenth_gym) environment for use within the AI Challenge competition context. This repository provides a bridge between the ROS 2 environment and the `aic_gym` simulation, allowing for control and sensing of a simulated vehicle.
 
 ## Purpose
 
