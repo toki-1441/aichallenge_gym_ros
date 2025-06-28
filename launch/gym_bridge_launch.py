@@ -30,16 +30,14 @@ import yaml
 def generate_launch_description():
     ld = LaunchDescription()
     config = os.path.join(
-        get_package_share_directory('f1tenth_gym_ros'),
+        get_package_share_directory('aichallenge_gym_ros'),
         'config',
         'sim.yaml'
         )
     config_dict = yaml.safe_load(open(config, 'r'))
-    has_opp = config_dict['bridge']['ros__parameters']['num_agent'] > 1
-    teleop = config_dict['bridge']['ros__parameters']['kb_teleop']
 
     bridge_node = Node(
-        package='f1tenth_gym_ros',
+        package='aichallenge_gym_ros',
         executable='gym_bridge',
         name='bridge',
         parameters=[config]
@@ -48,7 +46,7 @@ def generate_launch_description():
         package='rviz2',
         executable='rviz2',
         name='rviz',
-        arguments=['-d', os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'launch', 'gym_bridge.rviz')]
+        arguments=['-d', os.path.join(get_package_share_directory('aichallenge_gym_ros'), 'launch', 'gym_bridge.rviz')]
     )
     map_server_node = Node(
         package='nav2_map_server',
@@ -72,24 +70,22 @@ def generate_launch_description():
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='ego_robot_state_publisher',
-        parameters=[{'robot_description': Command(['xacro ', os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'launch', 'ego_racecar.xacro')])}],
+        parameters=[{'robot_description': Command(['xacro ', os.path.join(get_package_share_directory('aichallenge_gym_ros'), 'launch', 'ego_racecar.xacro')])}],
         remappings=[('/robot_description', 'ego_robot_description')]
     )
     opp_robot_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='opp_robot_state_publisher',
-        parameters=[{'robot_description': Command(['xacro ', os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'launch', 'opp_racecar.xacro')])}],
+        parameters=[{'robot_description': Command(['xacro ', os.path.join(get_package_share_directory('aichallenge_gym_ros'), 'launch', 'opp_racecar.xacro')])}],
         remappings=[('/robot_description', 'opp_robot_description')]
     )
 
     # finalize
-    ld.add_action(rviz_node)
+    # ld.add_action(rviz_node)
     ld.add_action(bridge_node)
     ld.add_action(nav_lifecycle_node)
     ld.add_action(map_server_node)
     ld.add_action(ego_robot_publisher)
-    if has_opp:
-        ld.add_action(opp_robot_publisher)
 
     return ld

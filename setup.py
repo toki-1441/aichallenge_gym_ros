@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'f1tenth_gym_ros'
+package_name = 'aichallenge_gym_ros'
 
 setup(
     name=package_name,
@@ -16,6 +16,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.xacro')),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.rviz')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.dae')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,7 +27,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'gym_bridge = f1tenth_gym_ros.gym_bridge:main'
+            'gym_bridge = aichallenge_gym_ros.gym_bridge:main'
         ],
     },
 )
